@@ -1,0 +1,13 @@
+streamlit
+g4f
+requests
+beautifulsoup4
+pandas
+pytz
+python-docx
+pdfplumber
+python-pptx
+fpdf2
+yt-dlp
+pydub
+SpeechRecognition

@@ -1,0 +1,22 @@
+# Directorul de mediu virtual Python
+.venv/
+venv/
+env/
+
+# Cache-ul Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Fișiere temporare generate de aplicație
+temp_*.wav
+temp_*.mp3
+temp_*.mp4
+
+# Fișiere de configurare ale editorului/IDE-ului
+.idea/
+.vscode/
+
+# Fișiere de sistem
+.DS_Store
