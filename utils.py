@@ -1,5 +1,3 @@
-# praga/utils.py
-
 import streamlit as st
 from g4f.client import Client
 from g4f.errors import RateLimitError, ProviderNotFoundError, ModelNotFoundError
@@ -108,7 +106,10 @@ def init_ai_service_client():
         return None
 
 def process_direct_with_ai_service(user_input_text, system_prompt, ai_client_instance, generation_params=None):
-    """Sends a request to the AI service and returns the response."""
+    """
+    Sends a request to the AI service and returns the response.
+    It now automatically tries a list of models until it finds a working one.
+    """
     params = generation_params.copy() if generation_params else {}
     
     if "messages_override" in params:
@@ -126,23 +127,38 @@ def process_direct_with_ai_service(user_input_text, system_prompt, ai_client_ins
     if ai_client_instance is None:
         return "AI Service is unavailable."
 
-    params.setdefault('model', "gpt-4o")
-    params.setdefault('temperature', 0.5)
-    params.setdefault('max_tokens', 2048)
-    params.setdefault('timeout', 180)
+    available_models_to_try = [
+        "gpt-4o", "gpt-3.5-turbo", "gemini-pro", "blackbox", "llama-3-8b"
+    ]
+    
+    used_model = None
+    response = None
 
-    try:
-        response = ai_client_instance.chat.completions.create(
-            messages=messages_to_send,
-            stream=False,
-            **params
-        )
-        if response.choices and response.choices[0].message and response.choices[0].message.content:
-            return response.choices[0].message.content.strip()
-        st.warning(f"Unexpected AI response structure: {response}")
-        return "The AI service did not return valid content."
-    except Exception as e:
-        return f"General AI service error: {type(e).__name__}."
+    for model_name in available_models_to_try:
+        params['model'] = model_name
+        try:
+            print(f"Încercăm modelul: {model_name}")
+            response = ai_client_instance.chat.completions.create(
+                messages=messages_to_send,
+                stream=False,
+                timeout=180,
+                **params
+            )
+            if response.choices and response.choices[0].message and response.choices[0].message.content:
+                used_model = model_name
+                break # Ieșim din buclă dacă am găsit un răspuns valid
+        except Exception as e:
+            print(f"Eroare cu modelul {model_name}: {e}")
+            continue
+
+    if not used_model:
+        return "Nu a fost găsit niciun model funcțional."
+
+    if response.choices and response.choices[0].message and response.choices[0].message.content:
+        return response.choices[0].message.content.strip()
+    
+    st.warning(f"Unexpected AI response structure: {response}")
+    return "The AI service did not return valid content."
 
 # --- Formatting and Document Generation Helper Functions ---
 
