@@ -11,6 +11,7 @@ import pdfplumber
 from pptx import Presentation
 from pptx.util import Pt, Inches
 from pptx.dml.color import RGBColor
+import inspect
 
 # --- Initial Data (can be overwritten) ---
 DEFAULT_COMPETENCIES_SPECIFIC = {
@@ -105,6 +106,59 @@ def init_ai_service_client():
         st.error(f"Critical error initializing AI client: {e}")
         return None
 
+@st.cache_resource
+def get_functional_models():
+    """
+    Tests all available models to find which ones are functional.
+    This function is cached to run only once at the start.
+    """
+    functional_models = []
+    all_model_classes = inspect.getmembers(g4f.models, inspect.isclass)
+    test_prompt = "Scrie o singură propoziție despre un robot."
+    
+    # Prioritize the user's requested models for testing
+    priority_models = ["DeepInfra", "LambdaChat", "OIVSCodeSer0501", "WeWordle", "Yqcloud"]
+    
+    # Create a set of all model names to avoid re-testing
+    all_model_names = {name for name, _ in all_model_classes}
+    
+    # Test priority models first
+    for model_name in priority_models:
+        if model_name in all_model_names:
+            try:
+                print(f"Testing priority model: {model_name}")
+                response = g4f.ChatCompletion.create(
+                    model=model_name,
+                    messages=[{"role": "user", "content": test_prompt}],
+                    stream=False,
+                    timeout=10
+                )
+                if response:
+                    functional_models.append(model_name)
+            except Exception as e:
+                print(f"Model {model_name} failed: {e}")
+                
+    # Test the rest of the models
+    for name, model_class in all_model_classes:
+        if name not in priority_models and not name.startswith('_'):
+            try:
+                print(f"Testing other model: {name}")
+                response = g4f.ChatCompletion.create(
+                    model=name,
+                    messages=[{"role": "user", "content": test_prompt}],
+                    stream=False,
+                    timeout=10
+                )
+                if response:
+                    functional_models.append(name)
+            except Exception as e:
+                print(f"Model {name} failed: {e}")
+    
+    if not functional_models:
+        st.error("No functional AI models were found. Please try again later.")
+        
+    return functional_models
+
 def process_direct_with_ai_service(user_input_text, system_prompt, ai_client_instance, generation_params=None):
     """
     Sends a request to the AI service and returns the response.
@@ -127,9 +181,7 @@ def process_direct_with_ai_service(user_input_text, system_prompt, ai_client_ins
     if ai_client_instance is None:
         return "AI Service is unavailable."
 
-    available_models_to_try = [
-        "gpt-4o", "gpt-3.5-turbo", "gemini-pro", "blackbox", "llama-3-8b"
-    ]
+    available_models_to_try = get_functional_models()
     
     used_model = None
     response = None
@@ -197,7 +249,7 @@ def create_document_word(content, title="Generated Document"):
         elif line.startswith('## '):
             document.add_heading(line.replace('## ', ''), level=2)
         elif line.startswith('# '):
-            document.add_heading(line.replace('# ', ''), level=1)
+            document.add_heading(line.replace('## ', ''), level=1)
         elif re.match(r'^\d+\.', line):
             document.add_paragraph(line, style='List Number')
         elif line.startswith('* ') or line.startswith('- '):
